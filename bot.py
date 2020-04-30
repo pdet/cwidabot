@@ -39,7 +39,7 @@ class BotHandlerMixin:
                 chat = message_text['chat']
                 if "type" in chat:
                     chat_type = chat["type"]
-                    if chat_type == "group":
+                    if chat_type == "group" or chat_type == "supergroup":
                         return True
         return False
 
@@ -120,7 +120,7 @@ class TelegramBot(BotHandlerMixin, Bottle):
         \\meeting_next_week - I'll tell you the meeting we have for next week
         \\help_insert - I'll give you a template to insert a meeting"""
         # schedule_meeting - if you want to schedule a meeting 
-        # \\meeting_today - I'll tell you if we have a meeting today """
+        # \\meeting_today - I'll tell you if we have a meeting today
     
     def meeting_next_week(self):
         d = datetime.today()
@@ -160,7 +160,7 @@ class TelegramBot(BotHandlerMixin, Bottle):
                 if (r[5]):
                     return_string += "\n Zoom Link:" + r[5]
                 return_string+='\n'
-            return 
+            return return_string 
 
     def meeting_today(self):
         duck_cursor.execute("select * from presentations where presentation_date = \'" +datetime.today().strftime('%Y-%m-%d')+ "\'")

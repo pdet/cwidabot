@@ -127,3 +127,10 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+#config needs to be private
+confix.txt
+
+#Dont commit the database with all the secret data
+presentations_cwi.db
+presentations_cwi.db.wal

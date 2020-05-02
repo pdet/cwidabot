@@ -1,5 +1,5 @@
 # Awesome-O CWI DA Bot
-This project is a chat-bot used to schedule meetings and whatnot.
+This project is a chat-bot used to schedule meetings and whatnot. Right now awesome-o is only capable of scheduling meetings and giving reminders about them. But the sky is the limit.
 
 # Requirements
 Python 2, [DuckDB](https://www.duckdb.org/) , [Bottle](https://bottlepy.org/docs/dev/) must be installed and  schedule.
@@ -8,7 +8,7 @@ If you use pip as a package manager the following command should suffice:
 pip install duckdb bottle schedule
 ```
 
-# Configuration file
+# Configuration File
 <token> - Replace this line with your bot's token
 <group_id> - This is the id where the bot should make the announcements
 <bot_name> - @bot_name, so we can filter the messages he should reply to if he is in a group

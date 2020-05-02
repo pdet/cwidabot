@@ -134,3 +134,7 @@ confix.txt
 #Dont commit the database with all the secret data
 presentations_cwi.db
 presentations_cwi.db.wal
+
+ngrok
+ngrok-stable-darwin-amd64.zip
+.DS_Store

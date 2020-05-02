@@ -8,7 +8,7 @@ import thread
 
 db = duckdb.connect('presentations_cwi.db')
 duck_cursor = db.cursor()
-# weekday = 0 (monday)
+
 def next_weekday(d, weekday):
     days_ahead = weekday - d.weekday()
     if days_ahead <= 0: # Target day already happened this week
@@ -90,14 +90,24 @@ class TelegramBot(BotHandlerMixin, Bottle):
             for y in x:
                 result_str += str(y) + ' '
             result_str += '\n'
-        return result_str
+        return result_str        
 
-    def schedule_meeting(self,chat_id):
-        self.send_message(chat_id,"What date you want to schedule the meeting? yyyy-mm-dd")
-        data = bottle_request.json
-        input_message = self.get_message(data)
-        duck_cursor.execute("select count(*) from presentations where presentation_date = \'" +str(input_message)+ "\'")
-        print (duck_cursor.fetchone())
+    def schedule_meeting(self,info):
+        meeting_info = info.split(',')
+        query = ''
+        # (date,author,title)
+        if (len(meeting_info) == 3):
+            query = "INSERT INTO presentations (presentation_date, author, title) VALUES " + info
+        # (date,author,title,zoom_link)
+        elif (len(meeting_info) == 4):
+            query = "INSERT INTO presentations (presentation_date, author, title,zoom_link) VALUES " + info
+        else:
+            query = "INSERT INTO presentations VALUES " + info
+        try:
+            duck_cursor.execute(query)
+            return "Meeting Scheduled"
+        except Exception as e: 
+            return str(e)
 
     def make_announcement(self):
         duck_cursor.execute("select * from presentations where presentation_date = \'" +datetime.today().strftime('%Y-%m-%d')+ "\'")
@@ -108,20 +118,18 @@ class TelegramBot(BotHandlerMixin, Bottle):
             else:
                 message =  """[beep] Good morning my human friends, Today we have a talk by %s about %s [boop]""" %(result[0][1],result[0][2])
             self.send_message(self.da_chat_id,message)
-        # else:
-        #     message = """Good morning human friends, we don't have a presentation today. Happy Hacking!"""
         return
 
     def help(self):
         return """You can issue the following commands and I'll respond! 
-        \\execute_query - I'm semi-fluent in sql, just tell me what you want
+        \\sql - I'm semi-fluent in sql, just give me a query and I'll run it
+        \\help_insert - Quick explain on how to schedule a meeting
+        \\schedule - Schedule meetings
+        \\summary - I'll give you a summary of all the metings from today onwards
         \\meeting_today - I'll tell you if we have a meeting today 
         \\meeting_this_week - Do we have meetings this week?
-        \\meeting_next_week - I'll tell you the meeting we have for next week
-        \\help_insert - I'll give you a template to insert a meeting"""
-        # schedule_meeting - if you want to schedule a meeting 
-        # \\meeting_today - I'll tell you if we have a meeting today
-    
+        \\meeting_next_week - I'll tell you the meeting we have for next week """
+
     def meeting_next_week(self):
         d = datetime.today()
         next_monday = next_weekday(d, 0)
@@ -133,10 +141,6 @@ class TelegramBot(BotHandlerMixin, Bottle):
             return_string =''
             for r in result:
                 return_string += "We have a presentation on " + str(r[0])+ " by: " + r[1] + "\n Title is:" + r[2]
-                # if (r[3]):
-                #     return_string += "\n Bio :" + r[3]
-                # if (r[4]):
-                #     return_string += "\n Abstract :" + r[4]
                 if (r[5]):
                     return_string += "\n Zoom Link:" + r[5]
                 return_string+='\n'
@@ -153,10 +157,6 @@ class TelegramBot(BotHandlerMixin, Bottle):
             return_string =''
             for r in result:
                 return_string += "We have a presentation on " + str(r[0])+ " by: " + r[1] + "\n Title is:" + r[2]
-                # if (r[3]):
-                #     return_string += "\n Bio :" + r[3]
-                # if (r[4]):
-                #     return_string += "\n Abstract :" + r[4]
                 if (r[5]):
                     return_string += "\n Zoom Link:" + r[5]
                 return_string+='\n'
@@ -169,33 +169,33 @@ class TelegramBot(BotHandlerMixin, Bottle):
             return "No presentations today, maybe you should schedule yourself one?"
         else:
             return_string = "We have a presentation today by: " + result[0][1] + "\n Title is:" + result[0][2]
-            # if (result[0][3]):
-            #     return_string += "\n Bio :" + result[0][3]
-            # if (result[0][4]):
-            #     return_string += "\n Abstract :" + result[0][4]
             if (result[0][5]):
                 return_string += "\n Zoom Link:" + result[0][5]
             return return_string
+
+    def run_query(self,query):
+        try:
+            duck_cursor.execute(query)
+        except Exception as e: 
+            return str(e)
+        return self.query_answer(duck_cursor.fetchall())
+
+    def summary(self):
+        return self.run_query( "SELECT presentation_date, author FROM presentations where presentation_date >= \'" +datetime.today().strftime('%Y-%m-%d') + "\' ORDER BY presentation_date")
+
+
+    
     def help_insert(self):
-        return """ I only have one table presentations(presentation_date Date NOT NULL UNIQUE, author String NOT NULL, title String NOT NULL, bio String, abtract string, zoom_link String);
-        one insert example is \\execute_query insert into presentations values ('2020-05-08', ' tiago kepe', 'in memory processing',NULL,NULL,NULL)"""
+        return """ You can either do:
+        \\schedule ('yyyy-mm-dd',author,title)
+        \\schedule ('yyyy-mm-dd',author,title,zoom_link)
+        \\schedule ('yyyy-mm-dd',author,title,bio,abstract,zoom_link)
+        """
 
     def what_to_answer(self,chat_id,text):
         first_word = text.split()[0]
-        if (first_word == "\\create_table"):
-            return "Not authorized"
-            # print (create_table())
-            # return "Table created, my good friend"
-        if (first_word == "\\drop_table"):
-            return "Not authorized"
-            # print (drop_table())
-            # return "Cleaning Complete beep"
-        if (first_word == "\\execute_query"):
-            try:
-                duck_cursor.execute(text.split(' ', 1)[1])
-            except Exception as e: 
-                return str(e)
-            return self.query_answer(duck_cursor.fetchall())
+        if (first_word == "\\sql"):
+            return self.run_query(text.split(' ', 1)[1])
         if (first_word == "\\help"):
            return self.help()
         if (first_word == "\\meeting_today"):
@@ -206,7 +206,11 @@ class TelegramBot(BotHandlerMixin, Bottle):
            return self.meeting_next_week()
         if (first_word == "\\meeting_this_week"):
            return self.meeting_this_week()
-        return "Beep Boop, I only understand the language of databases\n Say \\help if you want to know what I am capable of." 
+        if (first_word == "\\summary"):
+           return self.summary()
+        if (first_word == '\\schedule'):
+            return self.schedule_meeting(text.split(' ', 1)[1])
+        return "[Beep] I don't understand what you said, I only understand the language of databases\n Say \\help if you want to know what I am capable of. [Boop]" 
 
     def post_handler(self):
         data = bottle_request.json

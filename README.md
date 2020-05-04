@@ -19,7 +19,7 @@ I use [Ngrok](https://ngrok.com/) to interact with Telegram's webhook.
 You just need to download it
 ```bash
 ./ngrok http <our_server_port>
-(e.g.,)  ./ngrok http <our_server_port>
+(default)  ./ngrok http 8080
 ```
 and set the webhook:
 https://api.telegram.org/bot<bot_token>/setWebHook?url=https://<forward_ngrok_url.ngrok.io>/

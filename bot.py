@@ -4,7 +4,7 @@ import duckdb
 from datetime import datetime,timedelta
 import schedule
 import time
-import thread
+import _thread as thread
 
 db = duckdb.connect('presentations_cwi.db')
 duck_cursor = db.cursor()

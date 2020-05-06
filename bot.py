@@ -1,28 +1,34 @@
-import requests  
+import requests
 from bottle import Bottle, response, request as bottle_request
 import duckdb
-from datetime import datetime,timedelta
+from datetime import datetime, timedelta
 import schedule
 import time
 import _thread as thread
 
-db = duckdb.connect('presentations_cwi.db')
-duck_cursor = db.cursor()
+conn = duckdb.connect('presentations_cwi.db')
+presentations = conn.table("presentations")
+members = conn.table("members")
+duck_cursor = conn.cursor()
+
 
 def next_weekday(d, weekday):
     days_ahead = weekday - d.weekday()
-    if days_ahead <= 0: # Target day already happened this week
+    if days_ahead <= 0:  # Target day already happened this week
         days_ahead += 7
     return d + timedelta(days_ahead)
+
 
 def announcement_time():
     while True:
         schedule.run_pending()
-        time.sleep(60) # wait one minute
+        time.sleep(60)  # wait one minute
 
-class BotHandlerMixin:  
+
+class BotHandlerMixin:
     BOT_URL = None
-    #Method to extract chat id from telegram request.
+
+    # Method to extract chat id from telegram request.
     def get_chat_id(self, data):
         if "message" in data:
             chat_id = data['message']['chat']['id']
@@ -31,6 +37,7 @@ class BotHandlerMixin:
             chat_id = data['edited_message']['chat']['id']
             return chat_id
         return -1
+
     # Method to extract message id from telegram request.
     def isgroup(self, data):
         if "message" in data:
@@ -56,7 +63,7 @@ class BotHandlerMixin:
         return -1
 
     # Prepared data should be json which includes at least `chat_id` and `text` 
-    def send_message(self,chat_id,answer):  
+    def send_message(self, chat_id, answer):
         prepared_data = {
             "chat_id": chat_id,
             "text": answer,
@@ -64,89 +71,95 @@ class BotHandlerMixin:
         message_url = self.BOT_URL + 'sendMessage'
         requests.post(message_url, json=prepared_data)
 
-class TelegramBot(BotHandlerMixin, Bottle):  
+
+class TelegramBot(BotHandlerMixin, Bottle):
     BOT_URL = 'https://api.telegram.org/bot'
     da_chat_id = ''
     my_name = '@bobot'
+
     def __init__(self, *args, **kwargs):
         super(TelegramBot, self).__init__()
         self.route('/', callback=self.post_handler, method="POST")
         f = open("config.txt", "r")
         self.BOT_URL += f.readline().split("\n")[0]
         self.da_chat_id = f.readline().split("\n")[0]
-        self.my_name =  f.readline().split("\n")[0]
-        print (self.BOT_URL )
+        self.my_name = f.readline().split("\n")[0]
+        print(self.BOT_URL)
         print(self.da_chat_id)
         schedule.every().day.at("08:00").do(self.make_announcement)
         schedule.every().monday.at("11:38").do(self.request_speakers)
-        thread.start_new_thread(announcement_time, ())  
-    
-    def addPresentations(date,author,title):
-        Insert_statement = 'insert into presentations values ('+date+',' +author+',' + title+')'
-        duck_cursor.execute(Insert_statement)
+        thread.start_new_thread(announcement_time, ())
 
-    def query_answer(self,qa_list):
+    def add_presentations(self, date, author, title):
+        presentations.insert([date, author, title, None, None, None])
+
+    def query_answer(self, qa_list):
         result_str = ''
         for x in qa_list:
             for y in x:
                 result_str += str(y) + ' '
             result_str += '\n'
-        return result_str        
+        return result_str
 
-    def schedule_meeting(self,info):
+    def schedule_meeting(self, info):
         meeting_info = info.split(',')
-        query = ''
-        # (date,author,title)
-        if (len(meeting_info) == 3):
-            query = "INSERT INTO presentations (presentation_date, author, title) VALUES " + info
-        # (date,author,title,zoom_link)
-        elif (len(meeting_info) == 4):
-            query = "INSERT INTO presentations (presentation_date, author, title,zoom_link) VALUES " + info
-        else:
-            query = "INSERT INTO presentations VALUES " + info
         try:
-            duck_cursor.execute(query)
+            # (date,author,title)
+            if len(meeting_info) == 3:
+                print([str(meeting_info[0][1:]), str(meeting_info[1]), str(meeting_info[2][:-1]), None, None, None])
+                print(presentations.insert([meeting_info[0][1:], meeting_info[1], meeting_info[2][:-1], None, None, None]).execute())
+            # (date,author,title,zoom_link)
+            elif len(meeting_info) == 4:
+                presentations.insert([meeting_info[0][1:], meeting_info[1], meeting_info[2], None, None,
+                                      meeting_info[3][:-1]])
+            else:
+                print([meeting_info[0][1:], meeting_info[1], meeting_info[2][:-1], None, None, None])
+                print(presentations.insert(
+                    [meeting_info[0][1:], meeting_info[1], meeting_info[2][:-1], None, None, None]))
+                presentations.insert([meeting_info[0][1:], meeting_info[1], meeting_info[2], meeting_info[3],
+                                      meeting_info[4], meeting_info[5][:-1]])
             return "Meeting Scheduled"
-        except Exception as e: 
+        except Exception as e:
             return str(e)
 
     def make_announcement(self):
-        duck_cursor.execute("select * from presentations where presentation_date = \'" +datetime.today().strftime('%Y-%m-%d')+ "\'")
-        result = duck_cursor.fetchall()
-        if (len(result) != 0):
-            if(result[0][5]):
-                message =  """[beep] Good morning my human friends, Today we have a talk by %s about %s Here is the zoom-link: %s [boop]""" %(result[0][1],result[0][2],result[0][5])
+        result = presentations.filter("presentation_date = CURRENT_DATE()").execute.fetchall()
+        if len(result) != 0:
+            if result[0][5]:
+                message = """[beep] Good morning my human friends, Today we have a talk by %s about %s Here is the 
+                zoom-link: %s [boop]""" % (
+                    result[0][1], result[0][2], result[0][5])
             else:
-                message =  """[beep] Good morning my human friends, Today we have a talk by %s about %s [boop]""" %(result[0][1],result[0][2])
-            self.send_message(self.da_chat_id,message)
+                message = """[beep] Good morning my human friends, Today we have a talk by %s about %s [boop]""" % (
+                    result[0][1], result[0][2])
+            self.send_message(self.da_chat_id, message)
         return
 
     def request_speakers(self):
         next_monday = next_weekday(datetime.today(), 0)
         next_friday = next_weekday(next_monday, 4)
         missing_presenter = False
-        query = "select count(*) from presentations where presentation_date = \'" +next_monday.strftime('%Y-%m-%d')+ "\'"
-        print (query)
-        duck_cursor.execute(query)
-        message = "[beep] Hi humans, we are missing speakers for next week, based on advanced statistics I've decided that: \n"
-        # print (duck_cursor.fetchone()[0])
-        if (duck_cursor.fetchone()[0] == 0):
+        message = "[beep] Hi humans, we are missing speakers for next week, based on advanced statistics I've decided " \
+                  "that: \n "
+
+        if presentations.filter("presentation_date = '" + next_monday.strftime(
+                '%Y-%m-%d') + "'").aggregate("count(*)").execute.fetchone()[0] == 0:
             missing_presenter = True
-            duck_cursor.execute("select name from members order by last_madam, name")
-            name = duck_cursor.fetchone()[0] 
+            name = members.order('last_madam,name').project("name").execute.fetchone()[0]
             message += name + " should give a MADAM on " + next_monday.strftime('%d-%m-%Y') + "\n"
-            duck_cursor.execute("update members set last_madam = '" + next_monday.strftime('%Y-%m-%d')+ "' where name = '" + name + "'")
-        duck_cursor.execute("select count(*) from presentations where presentation_date = \'" +next_friday.strftime('%Y-%m-%d')+ "\'")
-        if (duck_cursor.fetchone()[0] == 0):
+            duck_cursor.execute("update members set last_madam = '" + next_monday.strftime(
+                '%Y-%m-%d') + "' where name = '" + name + "'")
+        if presentations.filter("presentation_date = '" + next_friday.strftime(
+                '%Y-%m-%d') + "'").aggregate("count(*)").execute.fetchone()[0] == 0:
             missing_presenter = True
-            duck_cursor.execute("select name from members order by last_fatal, name")
-            name = duck_cursor.fetchone()[0] 
+            name = members.order('last_fatal,name').project("name").execute.fetchone()[0]
             message += name + " should give a FATAL on " + next_friday.strftime('%d-%m-%Y') + "\n"
-            duck_cursor.execute("update members set last_fatal = '" + next_friday.strftime('%Y-%m-%d') + "' where name = '" + name + "'")
+            duck_cursor.execute("update members set last_fatal = '" + next_friday.strftime(
+                '%Y-%m-%d') + "' where name = '" + name + "'")
         message += "Talk to me and schedule yourself for your talk ASAP [boop]"
-        if (missing_presenter):
-            self.send_message(self.da_chat_id,message)
-        return 
+        if missing_presenter:
+            self.send_message(self.da_chat_id, message)
+        return
 
     def help(self):
         return """You can issue the following commands and I'll respond! 
@@ -161,58 +174,58 @@ class TelegramBot(BotHandlerMixin, Bottle):
     def meeting_next_week(self):
         d = datetime.today()
         next_monday = next_weekday(d, 0)
-        duck_cursor.execute("select * from presentations where presentation_date >= \'" +next_monday.strftime('%Y-%m-%d')+ "\' and presentation_date <= \'" +(next_monday+ timedelta(5)).strftime('%Y-%m-%d') +"\'" )
-        result = duck_cursor.fetchall()
-        if (len(result) == 0):
+        result = presentations.filter("presentation_date>='" + next_monday.strftime(
+            '%Y-%m-%d') + "' and presentation_date <='" + (next_monday + timedelta(5)).strftime('%Y-%m-%d') + "'") \
+            .execute().fetchall()
+        if len(result) == 0:
             return "Uff, no presentation for next week, maybe you should schedule yourself one?"
         else:
-            return_string =''
+            return_string = ''
             for r in result:
-                return_string += "We have a presentation on " + str(r[0])+ " by: " + r[1] + "\n Title is:" + r[2]
-                if (r[5]):
+                return_string += "We have a presentation on " + str(r[0]) + " by: " + r[1] + "\n Title is:" + r[2]
+                if r[5]:
                     return_string += "\n Zoom Link:" + r[5]
-                return_string+='\n'
+                return_string += '\n'
             return return_string
 
     def meeting_this_week(self):
         d = datetime.today()
         next_monday = next_weekday(d, 0)
-        duck_cursor.execute("select * from presentations where presentation_date >= \'" +datetime.today().strftime('%Y-%m-%d')+ "\' and presentation_date < \'" +next_monday.strftime('%Y-%m-%d') +"\'" )
-        result = duck_cursor.fetchall()
-        if (len(result) == 0):
+        result = presentations.filter("presentation_date>=CURRENT_DATE() and presentation_date <'"
+                                      + next_monday.strftime('%Y-%m-%d') + "'").execute().fetchall()
+        if len(result) == 0:
             return "Uff, no presentation for next week, maybe you should schedule yourself one?"
         else:
-            return_string =''
+            return_string = ''
             for r in result:
-                return_string += "We have a presentation on " + str(r[0])+ " by: " + r[1] + "\n Title is:" + r[2]
-                if (r[5]):
+                return_string += "We have a presentation on " + str(r[0]) + " by: " + r[1] + "\n Title is:" + r[2]
+                if r[5]:
                     return_string += "\n Zoom Link:" + r[5]
-                return_string+='\n'
-            return return_string 
+                return_string += '\n'
+            return return_string
 
     def meeting_today(self):
-        duck_cursor.execute("select * from presentations where presentation_date = \'" +datetime.today().strftime('%Y-%m-%d')+ "\'")
-        result = duck_cursor.fetchall()
-        if (len(result) == 0):
+        result = presentations.filter("presentation_date>=CURRENT_DATE()").execute().fetchall()
+        if len(result) == 0:
             return "No presentations today, maybe you should schedule yourself one?"
         else:
             return_string = "We have a presentation today by: " + result[0][1] + "\n Title is:" + result[0][2]
-            if (result[0][5]):
+            if result[0][5]:
                 return_string += "\n Zoom Link:" + result[0][5]
             return return_string
 
-    def run_query(self,query):
+    def run_query(self, query):
         try:
             duck_cursor.execute(query)
-        except Exception as e: 
+        except Exception as e:
             return str(e)
         return self.query_answer(duck_cursor.fetchall())
 
     def summary(self):
-        return self.run_query( "SELECT presentation_date, author FROM presentations where presentation_date >= \'" +datetime.today().strftime('%Y-%m-%d') + "\' ORDER BY presentation_date")
+        return self.run_query(
+            "SELECT presentation_date, author FROM presentations where presentation_date >= \'" + datetime.today().strftime(
+                '%Y-%m-%d') + "\' ORDER BY presentation_date")
 
-
-    
     def help_insert(self):
         return """ You can either do:
         \\schedule ('yyyy-mm-dd',author,title)
@@ -220,44 +233,46 @@ class TelegramBot(BotHandlerMixin, Bottle):
         \\schedule ('yyyy-mm-dd',author,title,bio,abstract,zoom_link)
         """
 
-    def what_to_answer(self,chat_id,text):
+    def what_to_answer(self, chat_id, text):
         first_word = text.split()[0]
-        if (first_word == "\\sql"):
+        if first_word == "\\sql":
             return self.run_query(text.split(' ', 1)[1])
-        if (first_word == "\\help"):
-           return self.help()
-        if (first_word == "\\meeting_today"):
-           return self.meeting_today()
-        if (first_word == "\\help_insert"):
-           return self.help_insert()
-        if (first_word == "\\meeting_next_week"):
-           return self.meeting_next_week()
-        if (first_word == "\\meeting_this_week"):
-           return self.meeting_this_week()
-        if (first_word == "\\summary"):
-           return self.summary()
-        if (first_word == '\\schedule'):
+        if first_word == "\\help":
+            return self.help()
+        if first_word == "\\meeting_today":
+            return self.meeting_today()
+        if first_word == "\\help_insert":
+            return self.help_insert()
+        if first_word == "\\meeting_next_week":
+            return self.meeting_next_week()
+        if first_word == "\\meeting_this_week":
+            return self.meeting_this_week()
+        if first_word == "\\summary":
+            return self.summary()
+        if first_word == '\\schedule':
             return self.schedule_meeting(text.split(' ', 1)[1])
-        return "[Beep] I don't understand what you said, I only understand the language of databases\n Say \\help if you want to know what I am capable of. [Boop]" 
+        return "[Beep] I don't understand what you said, I only understand the language of databases\n Say \\help if " \
+               "you want to know what I am capable of. [Boop] "
 
     def post_handler(self):
         data = bottle_request.json
         print(data)
         chat_id = self.get_chat_id(data)
-        if (chat_id == -1):
+        if chat_id == -1:
             return response
         input_message = self.get_message(data)
-        if (input_message == -1):
+        if input_message == -1:
             return response
         if self.isgroup(data):
             first_word = input_message.split()[0]
-            if (first_word != self.my_name):
+            if first_word != self.my_name:
                 return response
             input_message = input_message.split(' ', 1)[1]
-        answer_data = self.what_to_answer(chat_id,input_message)
+        answer_data = self.what_to_answer(chat_id, input_message)
         for answers in answer_data.split("\n"):
-            self.send_message(chat_id,answers)
+            self.send_message(chat_id, answers)
         return response  # status 200 OK by default
+
 
 if __name__ == '__main__':
     app = TelegramBot()

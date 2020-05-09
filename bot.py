@@ -144,6 +144,7 @@ class TelegramBot(BotHandlerMixin, Bottle):
         print (self.BOT_URL )
         print(self.da_chat_id)
         schedule.every().day.at("08:00").do(self.make_announcement)
+        schedule.every().monday.at("11:38").do(self.request_speakers)
         thread.start_new_thread(announcement_time, ())  
     
     def addPresentations(date,author,title):
@@ -185,6 +186,33 @@ class TelegramBot(BotHandlerMixin, Bottle):
                 message =  """[beep] Good morning my human friends, Today we have a talk by %s about %s [boop]""" %(result[0][1],result[0][2])
             self.send_message(self.da_chat_id,message)
         return
+
+    def request_speakers(self):
+        next_monday = next_weekday(datetime.today(), 0)
+        next_friday = next_weekday(next_monday, 4)
+        missing_presenter = False
+        query = "select count(*) from presentations where presentation_date = \'" +next_monday.strftime('%Y-%m-%d')+ "\'"
+        print (query)
+        duck_cursor.execute(query)
+        message = "[beep] Hi humans, we are missing speakers for next week, based on advanced statistics I've decided that: \n"
+        # print (duck_cursor.fetchone()[0])
+        if (duck_cursor.fetchone()[0] == 0):
+            missing_presenter = True
+            duck_cursor.execute("select name from members order by last_madam, name")
+            name = duck_cursor.fetchone()[0] 
+            message += name + " should give a MADAM on " + next_monday.strftime('%d-%m-%Y') + "\n"
+            duck_cursor.execute("update members set last_madam = '" + next_monday.strftime('%Y-%m-%d')+ "' where name = '" + name + "'")
+        duck_cursor.execute("select count(*) from presentations where presentation_date = \'" +next_friday.strftime('%Y-%m-%d')+ "\'")
+        if (duck_cursor.fetchone()[0] == 0):
+            missing_presenter = True
+            duck_cursor.execute("select name from members order by last_fatal, name")
+            name = duck_cursor.fetchone()[0] 
+            message += name + " should give a FATAL on " + next_friday.strftime('%d-%m-%Y') + "\n"
+            duck_cursor.execute("update members set last_fatal = '" + next_friday.strftime('%Y-%m-%d') + "' where name = '" + name + "'")
+        message += "Talk to me and schedule yourself for your talk ASAP [boop]"
+        if (missing_presenter):
+            self.send_message(self.da_chat_id,message)
+        return 
 
     def help(self):
         return """You can issue the following commands and I'll respond! 

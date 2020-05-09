@@ -5,9 +5,75 @@ from datetime import datetime,timedelta
 import schedule
 import time
 import _thread as thread
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
+from email.mime.text import MIMEText
+from email.utils import COMMASPACE, formatdate
+import email.encoders as Encoders
+import os
+import socket
+import ssl
 
 db = duckdb.connect('presentations_cwi.db')
 duck_cursor = db.cursor()
+
+def send_calendar_invite(eml_body,eml_subject, start, end):
+    f = open("config_email.txt", "r")
+    CRLF = "\r\n"
+    login = f.readline().split("\n")[0]
+    password = f.readline().split("\n")[0]
+    attendees = [f.readline().split("\n")[0]]
+    organizer = "Awesome-O;CN=Awesome-O:mailto:awesome-o"+CRLF+" @cwi.nl"
+    fro = "Awesome-O Master <holanda@cwi.nl>"
+
+    ddtstart = datetime.datetime.now()
+    dtoff = datetime.timedelta(days = 1)
+    dur = datetime.timedelta(hours = 1)
+    ddtstart = ddtstart +dtoff
+    dtend = ddtstart + dur
+    dtstamp = datetime.datetime.now().strftime("%Y%m%dT%H%M%SZ")
+    dtstart = ddtstart.strftime("%Y%m%dT%H%M%SZ")
+    dtend = dtend.strftime("%Y%m%dT%H%M%SZ")
+
+    description = "DESCRIPTION: test invitation from pyICSParser"+CRLF
+    attendee = ""
+    for att in attendees:
+        attendee += "ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-    PARTICIPANT;PARTSTAT=ACCEPTED;RSVP=TRUE"+CRLF+" ;CN="+att+";X-NUM-GUESTS=0:"+CRLF+" mailto:"+att+CRLF
+    ical = "BEGIN:VCALENDAR"+CRLF+"PRODID:pyICSParser"+CRLF+"VERSION:2.0"+CRLF+"CALSCALE:GREGORIAN"+CRLF
+    ical+="METHOD:REQUEST"+CRLF+"BEGIN:VEVENT"+CRLF+"DTSTART:"+dtstart+CRLF+"DTEND:"+dtend+CRLF+"DTSTAMP:"+dtstamp+CRLF+organizer+CRLF
+    ical+= "UID:FIXMEUID"+dtstamp+CRLF
+    ical+= attendee+"CREATED:"+dtstamp+CRLF+description+"LAST-MODIFIED:"+dtstamp+CRLF+"LOCATION:"+CRLF+"SEQUENCE:0"+CRLF+"STATUS:CONFIRMED"+CRLF
+    ical+= "SUMMARY:test "+ddtstart.strftime("%Y%m%d @ %H:%M")+CRLF+"TRANSP:OPAQUE"+CRLF+"END:VEVENT"+CRLF+"END:VCALENDAR"+CRLF
+
+    msg = MIMEMultipart('mixed')
+    msg['Reply-To']=fro
+    msg['Date'] = formatdate(localtime=True)
+    msg['Subject'] = eml_subject
+    msg['From'] = fro
+    msg['To'] = ",".join(attendees)
+
+    part_email = MIMEText(eml_body,"html")
+    part_cal = MIMEText(ical,'calendar;method=REQUEST')
+
+    msgAlternative = MIMEMultipart('alternative')
+    msg.attach(msgAlternative)
+
+    ical_atch = MIMEBase('application/ics',' ;name="%s"'%("invite.ics"))
+    ical_atch.set_payload(ical)
+    Encoders.encode_base64(ical_atch)
+    ical_atch.add_header('Content-Disposition', 'attachment; filename="%s"'%("invite.ics"))
+
+    msgAlternative.attach(part_email)
+    msgAlternative.attach(part_cal)
+
+    mailServer = smtplib.SMTP('zwebmail.cwi.nl', 587)
+    mailServer.ehlo()
+    mailServer.starttls()
+    mailServer.ehlo()
+    mailServer.login(login, password)
+    mailServer.sendmail(fro, attendees, msg.as_string())
+    mailServer.close()
 
 def next_weekday(d, weekday):
     days_ahead = weekday - d.weekday()
@@ -123,12 +189,11 @@ class TelegramBot(BotHandlerMixin, Bottle):
     def help(self):
         return """You can issue the following commands and I'll respond! 
         \\sql - I'm semi-fluent in sql, just give me a query and I'll run it
-        \\help_insert - Quick explain on how to schedule a meeting
+        \\insert_madam - Inserts a madam \\insert_madam ('yyyy-mm-dd','author_name','presentation_title')
+        \\insert_fatal - Inserts a fatal \\insert_fatal ('yyyy-mm-dd','author_name','presentation_title')
+        \\insert_holiday - Inserts a holiday \\insert_holiday('yyyy-mm-dd','holiday_name')
         \\schedule - Schedule meetings
-        \\summary - I'll give you a summary of all the metings from today onwards
-        \\meeting_today - I'll tell you if we have a meeting today 
-        \\meeting_this_week - Do we have meetings this week?
-        \\meeting_next_week - I'll tell you the meeting we have for next week """
+        \\summary - I'll give you a summary of all the metings from today onwards """
 
     def meeting_next_week(self):
         d = datetime.today()
@@ -195,20 +260,22 @@ class TelegramBot(BotHandlerMixin, Bottle):
     def what_to_answer(self,chat_id,text):
         first_word = text.split()[0]
         if (first_word == "\\sql"):
-            return self.run_query(text.split(' ', 1)[1])
+            query = text.split(' ', 1)[1]
+            if (query.split(' ', 1)[0].lower() == "insert" or query.split(' ', 1)[0].lower() == "delete" or query.split(' ', 1)[0].lower() == "update")
+            return "Not allowed yet."
         if (first_word == "\\help"):
            return self.help()
         if (first_word == "\\meeting_today"):
            return self.meeting_today()
-        if (first_word == "\\help_insert"):
-           return self.help_insert()
-        if (first_word == "\\meeting_next_week"):
+        if (first_word == "\\next_week"):
            return self.meeting_next_week()
-        if (first_word == "\\meeting_this_week"):
+        if (first_word == "\\this_week"):
            return self.meeting_this_week()
         if (first_word == "\\summary"):
            return self.summary()
-        if (first_word == '\\schedule'):
+        if (first_word == '\\insert_madam'):
+            return self.schedule_meeting(text.split(' ', 1)[1])
+        if (first_word == '\\insert_fatal'):
             return self.schedule_meeting(text.split(' ', 1)[1])
         return "[Beep] I don't understand what you said, I only understand the language of databases\n Say \\help if you want to know what I am capable of. [Boop]" 
 

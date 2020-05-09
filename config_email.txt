@@ -1,0 +1,3 @@
+<sender_email>
+<password>
+<attendees>

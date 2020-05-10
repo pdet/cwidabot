@@ -7,12 +7,18 @@ duck_cursor = db.cursor()
 # duck_cursor.execute("DROP TABLE IF EXISTS presentations;")
 # duck_cursor.execute("DROP TABLE IF EXISTS members;")
 
-duck_cursor.execute("CREATE TABLE IF NOT EXISTS presentations(presentation_date Date NOT NULL UNIQUE, presentation_time TIME NOT NULL, author String, title String NOT NULL, bio String, abtract string, zoom_link String);")
-duck_cursor.execute("CREATE TABLE IF NOT EXISTS members(name String NOT NULL UNIQUE, last_madam DATE NOT NULL, last_fatal Date NOT NULL);")
+duck_cursor.execute("CREATE TABLE IF NOT EXISTS presentations(presentation_date Date NOT NULL UNIQUE, "
+                    "presentation_time TIME, author String, title String NOT NULL, bio String, "
+                    "abstract string, zoom_link String);")
+
+duck_cursor.execute("CREATE TABLE IF NOT EXISTS members(name String NOT NULL UNIQUE, last_madam DATE NOT NULL, "
+                    "last_fatal Date NOT NULL);")
 
 
-# duck_cursor.execute("insert into presentations values ('2020-05-04', 'Pedro Holanda', 'Bla bla cracking bla bla', NULL,NULL, 'magic zoom_link');")
+duck_cursor.execute("insert into presentations values ('2020-05-04','13:00:00', 'Pedro Holanda', 'Bla bla cracking bla "
+                    "bla', NULL,NULL, 'magic zoom_link');")
 
+a = duck_cursor.execute("select * from presentations;").fetchall()
 duck_cursor.execute("insert into members values ('Hannes Mühleisen', '2020-01-20' ,'2019-01-01');")
 duck_cursor.execute("insert into members values ('Tim Gubner', '2020-01-27' ,'2020-03-09');")
 duck_cursor.execute("insert into members values ('Nantia Makrynioti', '2020-05-11', '2020-03-27');")

@@ -17,7 +17,9 @@ import ssl
 
 db = duckdb.connect('presentations_cwi.db')
 duck_cursor = db.cursor()
-
+zoom_file = open("config_zoom.txt", "r")
+zoom_madam = zoom_file.readline().split("\n")[0]
+zoom_fatal = zoom_file.readline().split("\n")[0]
 def send_calendar_invite(eml_body,eml_subject, start, end):
     f = open("config_email.txt", "r")
     CRLF = "\r\n"
@@ -159,6 +161,22 @@ class TelegramBot(BotHandlerMixin, Bottle):
             result_str += '\n'
         return result_str        
 
+    def schedule_madam(self,info):
+        meeting_info = info.split(',')
+        query = ''
+        # (date,author,title)
+        if (len(meeting_info) == 3):
+            query = "INSERT INTO presentations (presentation_date, author, title) VALUES " + info
+        # (date,author,title,zoom_link)
+        elif (len(meeting_info) == 4):
+            query = "INSERT INTO presentations (presentation_date, author, title,zoom_link) VALUES " + info
+        else:
+            query = "INSERT INTO presentations VALUES " + info
+        try:
+            duck_cursor.execute(query)
+            return "Madam Scheduled"
+        except Exception as e: 
+            return "Madam was not scheduled, try either: \n \\schedule_madam ('yyyy-mm-dd','name_author','title') \n \\schedule_madam ('yyyy-mm-dd','name_author','title','zoom_link') \n \\schedule_madam ('yyyy-mm-dd','name_author','title','bio','abstract',zoom_link') \n "str(e)
     def schedule_meeting(self,info):
         meeting_info = info.split(',')
         query = ''
@@ -195,7 +213,6 @@ class TelegramBot(BotHandlerMixin, Bottle):
         print (query)
         duck_cursor.execute(query)
         message = "[beep] Hi humans, we are missing speakers for next week, based on advanced statistics I've decided that: \n"
-        # print (duck_cursor.fetchone()[0])
         if (duck_cursor.fetchone()[0] == 0):
             missing_presenter = True
             duck_cursor.execute("select name from members order by last_madam, name")

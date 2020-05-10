@@ -17,9 +17,6 @@ import ssl
 
 db = duckdb.connect('presentations_cwi.db')
 duck_cursor = db.cursor()
-zoom_file = open("config_zoom.txt", "r")
-zoom_madam = zoom_file.readline().split("\n")[0]
-zoom_fatal = zoom_file.readline().split("\n")[0]
 
 
 def send_calendar_invite(eml_body, eml_subject, start):
@@ -29,14 +26,15 @@ def send_calendar_invite(eml_body, eml_subject, start):
     password = f.readline().split("\n")[0]
     attendees = [f.readline().split("\n")[0]]
     organizer = "Awesome-O;CN=Awesome-O:mailto:awesome-o" + CRLF + " @cwi.nl"
-    fro = "Awesome-O Master <holanda@cwi.nl>"
-
-    dur = datetime.timedelta(hours=1)
-    ddtstart = datetime.datetime.now()
+    fro = "Awesome-O <holanda@cwi.nl>"
+    #Hacky fix to gmt stuff
+    start -= timedelta(hours=2)
+    dur = timedelta(hours=1)
+    ddtstart = start
     dtstamp = ddtstart.strftime("%Y%m%dT%H%M%SZ")
     dtstart = start.strftime("%Y%m%dT%H%M%SZ")
     dtend = (start + dur).strftime("%Y%m%dT%H%M%SZ")
-    description = "DESCRIPTION: test invitation from pyICSParser" + CRLF
+    description = eml_subject + CRLF
     attendee = ""
     for att in attendees:
         attendee += "ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-    PARTICIPANT;PARTSTAT=ACCEPTED;RSVP=TRUE" + CRLF + " ;CN=" + att + ";X-NUM-GUESTS=0:" + CRLF + " mailto:" + att + CRLF
@@ -44,12 +42,11 @@ def send_calendar_invite(eml_body, eml_subject, start):
     ical += "METHOD:REQUEST" + CRLF + "BEGIN:VEVENT" + CRLF + "DTSTART:" + dtstart + CRLF + "DTEND:" + dtend + CRLF + "DTSTAMP:" + dtstamp + CRLF + organizer + CRLF
     ical += "UID:FIXMEUID" + dtstamp + CRLF
     ical += attendee + "CREATED:" + dtstamp + CRLF + description + "LAST-MODIFIED:" + dtstamp + CRLF + "LOCATION:" + CRLF + "SEQUENCE:0" + CRLF + "STATUS:CONFIRMED" + CRLF
-    ical += "SUMMARY:test " + ddtstart.strftime(
-        "%Y%m%d @ %H:%M") + CRLF + "TRANSP:OPAQUE" + CRLF + "END:VEVENT" + CRLF + "END:VCALENDAR" + CRLF
+    ical += "SUMMARY:"+eml_subject + CRLF + "TRANSP:OPAQUE" + CRLF + "END:VEVENT" + CRLF + "END:VCALENDAR" + CRLF
 
     msg = MIMEMultipart('mixed')
     msg['Reply-To'] = fro
-    msg['Date'] = formatdate(localtime=True)
+    msg['Date'] = formatdate(localtime=False)
     msg['Subject'] = eml_subject
     msg['From'] = fro
     msg['To'] = ",".join(attendees)
@@ -143,6 +140,7 @@ class TelegramBot(BotHandlerMixin, Bottle):
     my_name = '@bobot'
     madam_zoom_link = 'www.zoom.org'
     fatal_zoom_link = 'www.zoom.org'
+
     def __init__(self, *args, **kwargs):
         super(TelegramBot, self).__init__()
         self.route('/', callback=self.post_handler, method="POST")
@@ -169,19 +167,37 @@ class TelegramBot(BotHandlerMixin, Bottle):
     def schedule_madam(self, info):
         meeting_info = info.split(',')
         query = ''
+        presentation_date = meeting_info[0][1:]
         # (date,author,title)
         if len(meeting_info) == 3:
-            query = "INSERT INTO presentations (presentation_date, author, title) VALUES " + info
+            query = "INSERT INTO presentations (presentation_date, author, title,zoom_link, presentation_time) VALUES " + info[
+                :-1] + ",'" + self.fatal_zoom_link + "'"+ ",'13:00:00')"
+            print(query)
         # (date,time,author,title,zoom_link)
         elif len(meeting_info) == 4:
-            query = "INSERT INTO presentations (presentation_date,presentation_time, author, title) VALUES " + info
+            query = "INSERT INTO presentations (presentation_date,presentation_time, author, title,zoom_link) VALUES " + info[
+                :-1] + ",'" + self.fatal_zoom_link + "')"
         # (date,time,author,title,zoom_link)
-        elif len(meeting_info) == 4:
+        elif len(meeting_info) == 5:
             query = "INSERT INTO presentations (presentation_date,presentation_time, author, title,zoom_link) VALUES " + info
         else:
             query = "INSERT INTO presentations VALUES " + info
         try:
             duck_cursor.execute(query)
+            query = "select * from presentations where presentation_date = " + presentation_date
+            print(query)
+            meeting_info = duck_cursor.execute(query).fetchall()
+            print(meeting_info)
+            presentation_date = meeting_info[0][0]
+            presentation_time = meeting_info[0][1]
+            author_name = meeting_info[0][2]
+            title = meeting_info[0][3]
+            zoom_link = meeting_info[0][6]
+            subject = "Madam - " + author_name + " - " + title
+            body = "[Beep]<br> Dear humans, <br>  %s will present a MADAM with title: %s <br> at %s <br> See you there," \
+                   "<br><br>  PS:[boop]" % (
+                author_name, title, zoom_link)
+            send_calendar_invite(body, subject, datetime.combine(presentation_date, presentation_time))
             return "Madam Scheduled"
         except Exception as e:
             return "Madam was not scheduled, try either: \n \\add_madam ('yyyy-mm-dd','name_author','title') \n " \
@@ -195,39 +211,46 @@ class TelegramBot(BotHandlerMixin, Bottle):
         presentation_date = meeting_info[0][1:]
         # (date,author,title)
         if len(meeting_info) == 3:
-            query = "INSERT INTO presentations (presentation_date, author, title,zoom_link) VALUES " + info[:-1] + "," + self.fatal_zoom_link + ")"
+            query = "INSERT INTO presentations (presentation_date, author, title,zoom_link, presentation_time) VALUES " + info[
+                :-1] + ",'" + self.fatal_zoom_link + "'"+ ",'13:00:00')"
+            print(query)
         # (date,time,author,title,zoom_link)
         elif len(meeting_info) == 4:
-            query = "INSERT INTO presentations (presentation_date,presentation_time, author, title,zoom_link) VALUES " + info[:-1] + "," + self.fatal_zoom_link + ")"
+            query = "INSERT INTO presentations (presentation_date,presentation_time, author, title,zoom_link) VALUES " + info[
+                :-1] + ",'" + self.fatal_zoom_link + "')"
         # (date,time,author,title,zoom_link)
-        elif len(meeting_info) == 4:
+        elif len(meeting_info) == 5:
             query = "INSERT INTO presentations (presentation_date,presentation_time, author, title,zoom_link) VALUES " + info
         else:
             query = "INSERT INTO presentations VALUES " + info
         try:
             duck_cursor.execute(query)
+            query = "select * from presentations where presentation_date = " + presentation_date
+            print(query)
+            meeting_info = duck_cursor.execute(query).fetchall()
+            print(meeting_info)
+            presentation_date = meeting_info[0][0]
+            presentation_time = meeting_info[0][1]
+            author_name = meeting_info[0][2]
+            title = meeting_info[0][3]
+            zoom_link = meeting_info[0][6]
+            subject = "Fatal - " + author_name + " - " + title
+            body = "[Beep]<br> Dear humans, <br>  %s will present a FATAL with title: %s <br> at %s <br> See you there," \
+                   "<br><br>  PS:[boop]" % (
+                author_name, title, zoom_link)
+            send_calendar_invite(body, subject, datetime.combine(presentation_date, presentation_time))
+            return "Fatal Scheduled"
         except Exception as e:
             return "Fatal was not scheduled, try either: \n \\add_fatal ('yyyy-mm-dd','name_author','title') \n " \
                    "\\add_fatal ('yyyy-mm-dd','hh:mm:ss','name_author','title') \n \\add_fatal (" \
                    "'yyyy-mm-dd','hh:mm:ss','name_author','title','zoom_link') \n\\add_fatal (" \
                    "'yyyy-mm-dd','name_author','title','bio','abstract',zoom_link') \n " + str(e)
-        meeting_info = duck_cursor.execute(
-            "select * from presentations where presentation_date = '%s'" % (presentation_date)).fetchall()
-        presentation_date = meeting_info[0][0]
-        presentation_time = meeting_info[0][1]
-        author_name = meeting_info[0][2]
-        title = meeting_info[0][3]
-        zoom_link = meeting_info[0][6]
-        subject = "Fatal " + author_name + " - " + title
-        body = "[Beep] Dear humans, %s will present a FATAL  %s at %s \n See you there, \n \n PS:[boop]" % (author_name, title, zoom_link)
-        send_calendar_invite(body, subject, datetime.datetime.combine(presentation_date, presentation_time))
-        return "Fatal Scheduled"
 
     def schedule_holiday(self, info):
         meeting_info = info.split(',')
         query = ''
-        if len(meeting_info) == 2:
-            query = "INSERT INTO presentations (presentation_date, title) VALUES " + info
+        if len(meeting_info) == 1:
+            query = "INSERT INTO presentations (presentation_date) VALUES " + info
         else:
             return "Wrong number of parameters for holidays , try: \n \\add_holiday ('yyyy-mm-dd')"
         try:
@@ -239,7 +262,7 @@ class TelegramBot(BotHandlerMixin, Bottle):
     def schedule_scientific_meeting(self, info):
         meeting_info = info.split(',')
         query = ''
-        if len(meeting_info) == 1:
+        if len(meeting_info) == 2:
             query = "INSERT INTO presentations (presentation_date,presentation_time) VALUES " + info
         else:
             return "Wrong number of parameters for scientific meetings , try: \n \\add_scientific_meeting (" \

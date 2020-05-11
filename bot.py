@@ -176,12 +176,12 @@ class TelegramBot(BotHandlerMixin, Bottle):
             # (date,author,title)
             if len(meeting_info) == 3:
                 query = "INSERT INTO presentations (presentation_date, author, title,zoom_link, presentation_time) " \
-                        "VALUES " + info[:-1] + ",'" + self.fatal_zoom_link + "'" + ",'13:00:00') "
+                        "VALUES " + info[:-1] + ",'" + self.madam_zoom_link + "'" + ",'13:00:00') "
                 print(query)
             # (date,time,author,title,zoom_link)
             elif len(meeting_info) == 4:
                 query = "INSERT INTO presentations (presentation_date,presentation_time, author, title,zoom_link) " \
-                        "VALUES " + info[:-1] + ",'" + self.fatal_zoom_link + "') "
+                        "VALUES " + info[:-1] + ",'" + self.madam_zoom_link + "') "
             # (date,time,author,title,zoom_link)
             elif len(meeting_info) == 5:
                 query = "INSERT INTO presentations (presentation_date,presentation_time, author, title,zoom_link) " \

@@ -5,9 +5,9 @@ import os
 
 # Clean Test Database
 if os.path.exists("test.db"):
-  os.remove("test.db")
+    os.remove("test.db")
 
-#Bot Settings
+# Bot Settings
 app = bot.TelegramBot()
 app.BOT_URL = 'bot_url/'
 app.da_chat_id = '1010'
@@ -18,11 +18,12 @@ app.db = duckdb.connect('test.db')
 app.test = True
 app.duck_cursor = app.db.cursor()
 app.duck_cursor.execute("CREATE TABLE IF NOT EXISTS presentations(presentation_date Date NOT NULL UNIQUE, "
-                    "presentation_time TIME, author String, title String , bio String, "
-                    "abstract string, zoom_link String);")
+                        "presentation_time TIME, author String, title String , bio String, "
+                        "abstract string, zoom_link String);")
 
 app.duck_cursor.execute("CREATE TABLE IF NOT EXISTS members(name String NOT NULL UNIQUE, last_madam DATE NOT NULL, "
-                    "last_fatal Date NOT NULL);")
+                        "last_fatal Date NOT NULL);")
+
 
 # TODO: Check each insert, should be nicer with new RAPI
 def test_insert():
@@ -39,11 +40,13 @@ def test_insert():
     assert result == "Fatal Scheduled"
     # Insert Fatal (date,time,author,title)
     current_day += plus_one_day
-    result = app.what_to_answer("\\add_fatal ('" + current_day.strftime('%Y-%m-%d') + "','14:00:00','Diego','Bloom Layers of Obstruction')")
+    result = app.what_to_answer(
+        "\\add_fatal ('" + current_day.strftime('%Y-%m-%d') + "','14:00:00','Diego','Bloom Layers of Obstruction')")
     assert result == "Fatal Scheduled"
     # Insert Fatal (date,time,author,title,zoom_link)
     current_day += plus_one_day
-    result = app.what_to_answer("\\add_fatal ('" + current_day.strftime('%Y-%m-%d') + "','14:00:00','MVR','Reinventing The Wheel: A bful wheel','duckduckgo')")
+    result = app.what_to_answer("\\add_fatal ('" + current_day.strftime(
+        '%Y-%m-%d') + "','14:00:00','MVR','Reinventing The Wheel: A bful wheel','duckduckgo')")
     assert result == "Fatal Scheduled"
     # Insert Madam Wrong
     result = app.what_to_answer("\\add_madam")
@@ -58,11 +61,13 @@ def test_insert():
     # Insert Madam (date,time,author,title)
     # Insert Fatal (date,time,author,title)
     current_day += plus_one_day
-    result = app.what_to_answer("\\add_madam ('" + current_day.strftime('%Y-%m-%d') + "','14:00:00','Morpheu','Old New Hardware')")
+    result = app.what_to_answer(
+        "\\add_madam ('" + current_day.strftime('%Y-%m-%d') + "','14:00:00','Morpheu','Old New Hardware')")
     assert result == "Madam Scheduled"
     # Insert Madam (date,time,author,title,zoom_link)
     current_day += plus_one_day
-    result = app.what_to_answer("\\add_madam ('" + current_day.strftime('%Y-%m-%d') + "','14:00:00','Rick','Universe in a nutshell','rickityrick.com')")
+    result = app.what_to_answer("\\add_madam ('" + current_day.strftime(
+        '%Y-%m-%d') + "','14:00:00','Rick','Universe in a nutshell','rickityrick.com')")
     assert result == "Madam Scheduled"
 
     # Insert Holiday Wrong
@@ -90,15 +95,45 @@ def test_insert():
     result = app.what_to_answer("\\add_scientific_meeting ('" + current_day.strftime('%Y-%m-%d') + "', '13:00:00')")
     assert result == "Scientific Meeting Scheduled"
 
-    #Check if we have the correct number of entries in the db
+    # Check if we have the correct number of entries in the db
     result = app.duck_cursor.execute("select count(*) from presentations").fetchall()
     assert result[0][0] == 8
 
-# Test requests (user, group supergroup)
 
 # Test \sql
+def test_sql():
+    assert app.what_to_answer("\\sql").startswith("list index out of range")
+    assert app.what_to_answer("\\sql bla").startswith("Parser: syntax error")
+    assert app.what_to_answer("\\sql select count(*) from presentations")[0] == '8'
+    assert app.what_to_answer("\\sql select count(*) from presentations; select * from presentations")[0] == '8'
+    assert app.what_to_answer("\\sql CREATE TABLE abc (a integer)") == "You are not allowed to do this"
+    assert app.what_to_answer(
+        "\\sql insert into presentations (presentation_date) values ('2020-01-01')") == "You are not allowed to do this"
+    assert app.what_to_answer("\\sql delete from presentations") == "You are not allowed to do this"
+    assert app.what_to_answer("\\sql drop table presentations") == "You are not allowed to do this"
+    assert app.what_to_answer("\\sql update presentations set author = 'santa'") == "You are not allowed to do this"
+
 
 # Test Summary
+# TODO: Should check whole summary, will be easier with new RAPI
+def test_summary():
+    result = app.what_to_answer('\\summary')
+    assert len(result) == 138
+
+
+# Test Config File
+def test_config():
+    f = open("config.txt", "r")
+    assert f.readline().split("\n")[0] == "<token>"
+    assert f.readline().split("\n")[0] == "<group_id>"
+    assert f.readline().split("\n")[0] == "<bot_name>"
+    assert f.readline().split("\n")[0] == "<default_zoom_madam>"
+    assert f.readline().split("\n")[0] == "<default_zoom_fatal>"
+    assert f.readline().split("\n")[0] == "<sender_email>"
+    assert f.readline().split("\n")[0] == "<password>"
+    assert f.readline().split("\n")[0] == "<attendees>"
+
+# Test requests (user, group, supergroup)
 
 # Test calendar invite
 

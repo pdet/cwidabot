@@ -4,11 +4,11 @@ db = duckdb.connect("presentations_cwi.db")
 duck_cursor = db.cursor()
 
 # be sure to not delete your little database
-# duck_cursor.execute("DROP TABLE IF EXISTS presentations;")
-# duck_cursor.execute("DROP TABLE IF EXISTS members;")
+duck_cursor.execute("DROP TABLE IF EXISTS presentations;")
+duck_cursor.execute("DROP TABLE IF EXISTS members;")
 
 duck_cursor.execute("CREATE TABLE IF NOT EXISTS presentations(presentation_date Date NOT NULL UNIQUE, "
-                    "presentation_time TIME, author String, title String NOT NULL, bio String, "
+                    "presentation_time TIME, author String, title String , bio String, "
                     "abstract string, zoom_link String);")
 
 duck_cursor.execute("CREATE TABLE IF NOT EXISTS members(name String NOT NULL UNIQUE, last_madam DATE NOT NULL, "

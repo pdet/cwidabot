@@ -1,4 +1,6 @@
 requests==2.23.0
 bottle==0.12.18   
 schedule==0.6.0
+numpy==1.14
+pandas==0.23 
 duckdb==0.1.7 

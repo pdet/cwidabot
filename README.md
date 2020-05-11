@@ -9,6 +9,7 @@ pip3 install duckdb bottle schedule
 ```
 
 # Configuration File
+
 <token> - Replace this line with your bot's token
 <group_id> - This is the id where the bot should make the announcements
 <bot_name> - @bot_name, so we can filter the messages he should reply to if he is in a group
@@ -17,6 +18,7 @@ pip3 install duckdb bottle schedule
 <sender_email> - Email used to send calendar invitations
 <password> - Password for that email
 <attendees> - Email(s) that should get the invitation
+
 Obs: chmod 600 the configuration file
 
 # Running

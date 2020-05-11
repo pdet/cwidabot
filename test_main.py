@@ -25,6 +25,23 @@ app.duck_cursor.execute("CREATE TABLE IF NOT EXISTS members(name String NOT NULL
                         "last_fatal Date NOT NULL);")
 
 
+def test_announcements():
+    current_day = datetime.today()
+    app.what_to_answer("\\add_fatal ('" + current_day.strftime('%Y-%m-%d') + "','Pedro','Cracking rehash')")
+    assert app.make_announcement() == "[beep] Good morning my human friends, Today we have a talk by Pedro at " \
+                                      "13:00 about Cracking rehash Here is the zoom-link: www.fatal.zoom " \
+                                      "be there or be square[boop]"
+    app.duck_cursor.execute("delete from presentations;")
+
+    app.what_to_answer("\\add_holiday ('" + current_day.strftime('%Y-%m-%d') + "')")
+    assert app.make_announcement() == "[beep] Hey Humans, enjoy the holiday! No working allowed today. [boop]"
+    app.duck_cursor.execute("delete from presentations;")
+
+    app.what_to_answer("\\add_scientific_meeting ('" + current_day.strftime('%Y-%m-%d') + "', '13:00:00')")
+    assert app.make_announcement() == "[beep] Hey Humans, today is scientific meeting day, enjoy the sandwiches. [boop]"
+    app.duck_cursor.execute("delete from presentations;")
+
+
 # TODO: Check each insert, should be nicer with new RAPI
 def test_insert():
     current_day = datetime.today()
@@ -137,4 +154,4 @@ def test_config():
 
 # Test calendar invite
 
-# Test announcements
+# Test bully

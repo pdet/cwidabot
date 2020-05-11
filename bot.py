@@ -70,7 +70,10 @@ class BotHandlerMixin:
             "text": answer,
         }
         message_url = self.BOT_URL + 'sendMessage'
-        requests.post(message_url, json=prepared_data)
+        try:
+            requests.post(message_url, json=prepared_data)
+        except Exception as e:
+            return e
 
 
 class TelegramBot(BotHandlerMixin, Bottle):
@@ -196,8 +199,8 @@ class TelegramBot(BotHandlerMixin, Bottle):
             title = meeting_info[0][3]
             zoom_link = meeting_info[0][6]
             subject = "Madam - " + author_name + " - " + title
-            body = "[Beep]<br> Dear humans, <br>  %s will present a MADAM with title: %s <br> at %s <br> See you there," \
-                   "<br><br>  PS:[boop]" % (
+            body = "[Beep]<br> Dear humans, <br>  %s will present a MADAM with title: %s <br> at %s" \
+                   " <br> See you there,<br><br>  PS:[boop]" % (
                        author_name, title, zoom_link)
             if not self.test:
                 self.send_calendar_invite(body, subject, datetime.combine(presentation_date, presentation_time))
@@ -284,29 +287,34 @@ class TelegramBot(BotHandlerMixin, Bottle):
 
     def make_announcement(self):
         self.duck_cursor.execute(
-            "select * from presentations where presentation_date = \'" + datetime.today().strftime('%Y-%m-%d') + "\'")
+            "select presentation_time, author,title,zoom_link from presentations where presentation_date = \'"
+            + datetime.today().strftime('%Y-%m-%d') + "\'")
         result = self.duck_cursor.fetchall()
+        print(len(result))
         if len(result) != 0:
             # Check if it is a holiday (i.e., time is null)
-            if not result[0][1]:
+            if not result[0][0]:
+                message = "[beep] Hey Humans, enjoy the holiday! No working allowed today. [boop]"
                 self.send_message(self.da_chat_id,
-                                  "[beep] Hey Humans, enjoy the holiday! No working allowed today. [boop]")
-                return
+                                  message)
+                return message
                 # Check if it is a scientific meeting (i.e., presenter is null)
-            elif not result[0][2]:
-                self.send_message(self.da_chat_id,
-                                  "[beep] Hey Humans, today is scientific meeting day, enjoy the sandwiches. [boop]")
-                return
+            elif not result[0][1]:
+                message = "[beep] Hey Humans, today is scientific meeting day, enjoy the sandwiches. [boop]"
+                self.send_message(self.da_chat_id, message)
+                return message
             # OW its a Madam/Fatal
-            if result[0][5]:
-                message = """[beep] Good morning my human friends, Today we have a talk by %s about %s Here is the
-                 zoom-link: %s be there or be square[boop]""" % (
-                    result[0][1], result[0][2], result[0][5])
+            if result[0][3]:
+                message = "[beep] Good morning my human friends, Today we have a talk by %s at %s about %s" \
+                          " Here is the zoom-link: %s be there or be square[boop]" % (
+                              result[0][1], result[0][0].strftime('%H:%M'), result[0][2], result[0][3])
+                self.send_message(self.da_chat_id, message)
+                return message
             else:
-                message = """[beep] Good morning my human friends, Today we have a talk by %s about %s [boop]""" % (
-                    result[0][1], result[0][2])
-            self.send_message(self.da_chat_id, message)
-        return
+                message = "[beep] Good morning my human friends, Today we have a talk by %s about %s at %s[boop]" % (
+                    result[0][1], result[0][2], result[0][0])
+                self.send_message(self.da_chat_id, message)
+                return message
 
     def request_speakers(self):
         next_monday = next_weekday(datetime.today(), 0)
@@ -347,53 +355,6 @@ class TelegramBot(BotHandlerMixin, Bottle):
         \\add_holiday - Inserts a holiday
         \\add_scientific_meeting - Inserts a scientific meeting
         \\summary - I'll give you a summary of all the meetings from today onwards """
-
-    def meeting_next_week(self):
-        d = datetime.today()
-        next_monday = next_weekday(d, 0)
-        self.duck_cursor.execute("select * from presentations where presentation_date >= \'" + next_monday.strftime(
-            '%Y-%m-%d') + "\' and presentation_date <= \'" + (next_monday + timedelta(5)).strftime('%Y-%m-%d') + "\'")
-        result = self.duck_cursor.fetchall()
-        if len(result) == 0:
-            return "Uff, no presentation for next week, maybe you should schedule yourself one?"
-        else:
-            return_string = ''
-            for r in result:
-                return_string += "We have a presentation on " + str(r[0]) + " by: " + r[1] + "\n Title is:" + r[2]
-                if r[5]:
-                    return_string += "\n Zoom Link:" + r[5]
-                return_string += '\n'
-            return return_string
-
-    def meeting_this_week(self):
-        d = datetime.today()
-        next_monday = next_weekday(d, 0)
-        self.duck_cursor.execute(
-            "select * from presentations where presentation_date >= \'" + datetime.today().strftime(
-                '%Y-%m-%d') + "\' and presentation_date < \'" + next_monday.strftime('%Y-%m-%d') + "\'")
-        result = self.duck_cursor.fetchall()
-        if len(result) == 0:
-            return "Uff, no presentation for next week, maybe you should schedule yourself one?"
-        else:
-            return_string = ''
-            for r in result:
-                return_string += "We have a presentation on " + str(r[0]) + " by: " + r[1] + "\n Title is:" + r[2]
-                if r[5]:
-                    return_string += "\n Zoom Link:" + r[5]
-                return_string += '\n'
-            return return_string
-
-    def meeting_today(self):
-        self.duck_cursor.execute(
-            "select * from presentations where presentation_date = \'" + datetime.today().strftime('%Y-%m-%d') + "\'")
-        result = self.duck_cursor.fetchall()
-        if len(result) == 0:
-            return "No presentations today, maybe you should schedule yourself one?"
-        else:
-            return_string = "We have a presentation today by: " + result[0][1] + "\n Title is:" + result[0][2]
-            if result[0][5]:
-                return_string += "\n Zoom Link:" + result[0][5]
-            return return_string
 
     def run_query(self, text):
         try:

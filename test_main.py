@@ -23,8 +23,37 @@ app.duck_cursor.execute("CREATE TABLE IF NOT EXISTS presentations(presentation_d
 
 app.duck_cursor.execute("CREATE TABLE IF NOT EXISTS members(name String NOT NULL UNIQUE, last_madam DATE NOT NULL, "
                         "last_fatal Date NOT NULL);")
+app.duck_cursor.execute("insert into members values ('Hannes Mühleisen', '2020-01-20' ,'2019-01-01');")
+app.duck_cursor.execute("insert into members values ('Tim Gubner', '2020-01-27' ,'2020-03-09');")
+app.duck_cursor.execute("insert into members values ('Nantia Makrynioti', '2020-05-11', '2020-03-27');")
+app.duck_cursor.execute("insert into members values ('Peter Boncz', '2020-03-20', '2020-04-10');")
+app.duck_cursor.execute("insert into members values ('Long Tran', '2019-01-01','2019-01-01');")
 
+def next_weekday(d, weekday):
+    days_ahead = weekday - d.weekday()
+    if days_ahead <= 0:  # Target day already happened this week
+        days_ahead += 7
+    return d + timedelta(days_ahead)
 
+# Test bully
+def test_bullying():
+    next_monday = next_weekday(datetime.today(), 0)
+    next_friday = next_weekday(next_monday, 4)
+    result = app.request_speakers()
+    assert len(result) == 2
+    assert result[0] == "Long Tran"
+    assert result[1] == "Hannes Mühleisen"
+    app.what_to_answer("\\add_fatal ('" + next_friday.strftime('%Y-%m-%d') + "','Pedro','Cracking rehash')")
+    result = app.request_speakers()
+    assert len(result) == 1
+    assert result[0] == "Hannes Mühleisen"
+    result = app.request_speakers()
+    assert len(result) == 1
+    assert result[0] == "Tim Gubner"
+    app.what_to_answer("\\add_madam ('" + next_monday.strftime('%Y-%m-%d') + "','Pedro','Cracking rehash')")
+    result = app.request_speakers()
+    assert len(result) == 0
+    
 def test_announcements():
     current_day = datetime.today()
     app.what_to_answer("\\add_fatal ('" + current_day.strftime('%Y-%m-%d') + "','Pedro','Cracking rehash')")
@@ -153,5 +182,3 @@ def test_config():
 # Test requests (user, group, supergroup)
 
 # Test calendar invite
-
-# Test bully

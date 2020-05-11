@@ -320,9 +320,9 @@ class TelegramBot(BotHandlerMixin, Bottle):
         next_monday = next_weekday(datetime.today(), 0)
         next_friday = next_weekday(next_monday, 4)
         missing_presenter = False
+        speakers = []
         query = "select count(*) from presentations where presentation_date = \'" + next_monday.strftime(
             '%Y-%m-%d') + "\'"
-        print(query)
         self.duck_cursor.execute(query)
         message = "[beep] Hi humans, we are missing speakers for next week, based on advanced statistics I've decided " \
                   "that: \n "
@@ -333,6 +333,7 @@ class TelegramBot(BotHandlerMixin, Bottle):
             message += name + " should give a MADAM on " + next_monday.strftime('%d-%m-%Y') + "\n"
             self.duck_cursor.execute("update members set last_madam = '" + next_monday.strftime(
                 '%Y-%m-%d') + "' where name = '" + name + "'")
+            speakers.append(name)
         self.duck_cursor.execute(
             "select count(*) from presentations where presentation_date = \'" + next_friday.strftime('%Y-%m-%d') + "\'")
         if self.duck_cursor.fetchone()[0] == 0:
@@ -342,10 +343,11 @@ class TelegramBot(BotHandlerMixin, Bottle):
             message += name + " should give a FATAL on " + next_friday.strftime('%d-%m-%Y') + "\n"
             self.duck_cursor.execute("update members set last_fatal = '" + next_friday.strftime(
                 '%Y-%m-%d') + "' where name = '" + name + "'")
+            speakers.append(name)
         message += "Talk to me and schedule yourself for your talk ASAP [boop]"
         if missing_presenter:
             self.send_message(self.da_chat_id, message)
-        return
+        return speakers
 
     def help(self):
         return """You can issue the following commands and I'll respond!

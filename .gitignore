@@ -138,3 +138,6 @@ presentations_cwi.db.wal
 ngrok
 ngrok-stable-darwin-amd64.zip
 .DS_Store
+test.db
+test.db.wal
+.idea/

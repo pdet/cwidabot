@@ -15,10 +15,6 @@ import os
 import socket
 import ssl
 
-db = duckdb.connect('presentations_cwi.db')
-duck_cursor = db.cursor()
-
-
 def send_calendar_invite(eml_body, eml_subject, start):
     f = open("config_email.txt", "r")
     CRLF = "\r\n"
@@ -140,7 +136,9 @@ class TelegramBot(BotHandlerMixin, Bottle):
     my_name = '@bobot'
     madam_zoom_link = 'www.zoom.org'
     fatal_zoom_link = 'www.zoom.org'
-
+    db = duckdb.connect('presentations_cwi.db')
+    duck_cursor = db.cursor()
+    test = False
     def __init__(self, *args, **kwargs):
         super(TelegramBot, self).__init__()
         self.route('/', callback=self.post_handler, method="POST")
@@ -165,28 +163,29 @@ class TelegramBot(BotHandlerMixin, Bottle):
         return result_str
 
     def schedule_madam(self, info):
-        meeting_info = info.split(',')
-        query = ''
-        presentation_date = meeting_info[0][1:]
-        # (date,author,title)
-        if len(meeting_info) == 3:
-            query = "INSERT INTO presentations (presentation_date, author, title,zoom_link, presentation_time) VALUES " + info[
-                :-1] + ",'" + self.fatal_zoom_link + "'"+ ",'13:00:00')"
-            print(query)
-        # (date,time,author,title,zoom_link)
-        elif len(meeting_info) == 4:
-            query = "INSERT INTO presentations (presentation_date,presentation_time, author, title,zoom_link) VALUES " + info[
-                :-1] + ",'" + self.fatal_zoom_link + "')"
-        # (date,time,author,title,zoom_link)
-        elif len(meeting_info) == 5:
-            query = "INSERT INTO presentations (presentation_date,presentation_time, author, title,zoom_link) VALUES " + info
-        else:
-            query = "INSERT INTO presentations VALUES " + info
         try:
-            duck_cursor.execute(query)
+            info = info.split(' ', 1)[1]
+            meeting_info = info.split(',')
+            query = ''
+            presentation_date = meeting_info[0][1:]
+            # (date,author,title)
+            if len(meeting_info) == 3:
+                query = "INSERT INTO presentations (presentation_date, author, title,zoom_link, presentation_time) VALUES " + info[
+                    :-1] + ",'" + self.fatal_zoom_link + "'"+ ",'13:00:00')"
+                print(query)
+            # (date,time,author,title,zoom_link)
+            elif len(meeting_info) == 4:
+                query = "INSERT INTO presentations (presentation_date,presentation_time, author, title,zoom_link) VALUES " + info[
+                    :-1] + ",'" + self.fatal_zoom_link + "')"
+            # (date,time,author,title,zoom_link)
+            elif len(meeting_info) == 5:
+                query = "INSERT INTO presentations (presentation_date,presentation_time, author, title,zoom_link) VALUES " + info
+            else:
+                query = "INSERT INTO presentations VALUES " + info
+            self.duck_cursor.execute(query)
             query = "select * from presentations where presentation_date = " + presentation_date
             print(query)
-            meeting_info = duck_cursor.execute(query).fetchall()
+            meeting_info = self.duck_cursor.execute(query).fetchall()
             print(meeting_info)
             presentation_date = meeting_info[0][0]
             presentation_time = meeting_info[0][1]
@@ -197,7 +196,8 @@ class TelegramBot(BotHandlerMixin, Bottle):
             body = "[Beep]<br> Dear humans, <br>  %s will present a MADAM with title: %s <br> at %s <br> See you there," \
                    "<br><br>  PS:[boop]" % (
                 author_name, title, zoom_link)
-            send_calendar_invite(body, subject, datetime.combine(presentation_date, presentation_time))
+            if not self.test:
+                send_calendar_invite(body, subject, datetime.combine(presentation_date, presentation_time))
             return "Madam Scheduled"
         except Exception as e:
             return "Madam was not scheduled, try either: \n \\add_madam ('yyyy-mm-dd','name_author','title') \n " \
@@ -206,28 +206,29 @@ class TelegramBot(BotHandlerMixin, Bottle):
                    "'yyyy-mm-dd','name_author','title','bio','abstract',zoom_link') \n " + str(e)
 
     def schedule_fatal(self, info):
-        meeting_info = info.split(',')
-        query = ''
-        presentation_date = meeting_info[0][1:]
-        # (date,author,title)
-        if len(meeting_info) == 3:
-            query = "INSERT INTO presentations (presentation_date, author, title,zoom_link, presentation_time) VALUES " + info[
-                :-1] + ",'" + self.fatal_zoom_link + "'"+ ",'13:00:00')"
-            print(query)
-        # (date,time,author,title,zoom_link)
-        elif len(meeting_info) == 4:
-            query = "INSERT INTO presentations (presentation_date,presentation_time, author, title,zoom_link) VALUES " + info[
-                :-1] + ",'" + self.fatal_zoom_link + "')"
-        # (date,time,author,title,zoom_link)
-        elif len(meeting_info) == 5:
-            query = "INSERT INTO presentations (presentation_date,presentation_time, author, title,zoom_link) VALUES " + info
-        else:
-            query = "INSERT INTO presentations VALUES " + info
         try:
-            duck_cursor.execute(query)
+            info = info.split(' ', 1)[1]
+            meeting_info = info.split(',')
+            query = ''
+            presentation_date = meeting_info[0][1:]
+            # (date,author,title)
+            if len(meeting_info) == 3:
+                query = "INSERT INTO presentations (presentation_date, author, title,zoom_link, presentation_time) VALUES " + info[
+                    :-1] + ",'" + self.fatal_zoom_link + "'"+ ",'13:00:00')"
+                print(query)
+            # (date,time,author,title)
+            elif len(meeting_info) == 4:
+                query = "INSERT INTO presentations (presentation_date,presentation_time, author, title,zoom_link) VALUES " + info[
+                    :-1] + ",'" + self.fatal_zoom_link + "')"
+            # (date,time,author,title,zoom_link)
+            elif len(meeting_info) == 5:
+                query = "INSERT INTO presentations (presentation_date,presentation_time, author, title,zoom_link) VALUES " + info
+            else:
+                query = "INSERT INTO presentations VALUES " + info
+            self.duck_cursor.execute(query)
             query = "select * from presentations where presentation_date = " + presentation_date
             print(query)
-            meeting_info = duck_cursor.execute(query).fetchall()
+            meeting_info = self.duck_cursor.execute(query).fetchall()
             print(meeting_info)
             presentation_date = meeting_info[0][0]
             presentation_time = meeting_info[0][1]
@@ -238,7 +239,8 @@ class TelegramBot(BotHandlerMixin, Bottle):
             body = "[Beep]<br> Dear humans, <br>  %s will present a FATAL with title: %s <br> at %s <br> See you there," \
                    "<br><br>  PS:[boop]" % (
                 author_name, title, zoom_link)
-            send_calendar_invite(body, subject, datetime.combine(presentation_date, presentation_time))
+            if not self.test:
+                send_calendar_invite(body, subject, datetime.combine(presentation_date, presentation_time))
             return "Fatal Scheduled"
         except Exception as e:
             return "Fatal was not scheduled, try either: \n \\add_fatal ('yyyy-mm-dd','name_author','title') \n " \
@@ -247,37 +249,39 @@ class TelegramBot(BotHandlerMixin, Bottle):
                    "'yyyy-mm-dd','name_author','title','bio','abstract',zoom_link') \n " + str(e)
 
     def schedule_holiday(self, info):
-        meeting_info = info.split(',')
-        query = ''
-        if len(meeting_info) == 1:
-            query = "INSERT INTO presentations (presentation_date) VALUES " + info
-        else:
-            return "Wrong number of parameters for holidays , try: \n \\add_holiday ('yyyy-mm-dd')"
         try:
-            duck_cursor.execute(query)
+            info = info.split(' ', 1)[1]
+            meeting_info = info.split(',')
+            query = ''
+            if len(meeting_info) == 1:
+                query = "INSERT INTO presentations (presentation_date) VALUES " + info
+            else:
+                return "Wrong number of parameters for holidays , try: \n \\add_holiday ('yyyy-mm-dd')"
+            self.duck_cursor.execute(query)
             return "Holiday Scheduled"
         except Exception as e:
             return "Holiday was not scheduled, try: \n \\add_holiday ('yyyy-mm-dd') \n" + str(e)
 
     def schedule_scientific_meeting(self, info):
-        meeting_info = info.split(',')
-        query = ''
-        if len(meeting_info) == 2:
-            query = "INSERT INTO presentations (presentation_date,presentation_time) VALUES " + info
-        else:
-            return "Wrong number of parameters for scientific meetings , try: \n \\add_scientific_meeting (" \
-                   "'yyyy-mm-dd','hh:mm:ss') "
         try:
-            duck_cursor.execute(query)
+            info = info.split(' ', 1)[1]
+            meeting_info = info.split(',')
+            query = ''
+            if len(meeting_info) == 2:
+                query = "INSERT INTO presentations (presentation_date,presentation_time) VALUES " + info
+            else:
+                return "Wrong number of parameters for scientific meetings , try: \n \\add_scientific_meeting (" \
+                       "'yyyy-mm-dd','hh:mm:ss') "
+            self.duck_cursor.execute(query)
             return "Scientific Meeting Scheduled"
         except Exception as e:
             return "Scientific Meeting was not scheduled, try: \n \\add_scientific_meeting ('yyyy-mm-dd','hh:mm:ss') \n" + str(
                 e)
 
     def make_announcement(self):
-        duck_cursor.execute(
+        self.duck_cursor.execute(
             "select * from presentations where presentation_date = \'" + datetime.today().strftime('%Y-%m-%d') + "\'")
-        result = duck_cursor.fetchall()
+        result = self.duck_cursor.fetchall()
         if len(result) != 0:
             # Check if it is a holiday (i.e., time is null)
             if not result[0][1]:
@@ -307,24 +311,24 @@ class TelegramBot(BotHandlerMixin, Bottle):
         query = "select count(*) from presentations where presentation_date = \'" + next_monday.strftime(
             '%Y-%m-%d') + "\'"
         print(query)
-        duck_cursor.execute(query)
+        self.duck_cursor.execute(query)
         message = "[beep] Hi humans, we are missing speakers for next week, based on advanced statistics I've decided " \
                   "that: \n "
-        if duck_cursor.fetchone()[0] == 0:
+        if self.duck_cursor.fetchone()[0] == 0:
             missing_presenter = True
-            duck_cursor.execute("select name from members order by last_madam, name")
-            name = duck_cursor.fetchone()[0]
+            self.duck_cursor.execute("select name from members order by last_madam, name")
+            name = self.duck_cursor.fetchone()[0]
             message += name + " should give a MADAM on " + next_monday.strftime('%d-%m-%Y') + "\n"
-            duck_cursor.execute("update members set last_madam = '" + next_monday.strftime(
+            self.duck_cursor.execute("update members set last_madam = '" + next_monday.strftime(
                 '%Y-%m-%d') + "' where name = '" + name + "'")
-        duck_cursor.execute(
+        self.duck_cursor.execute(
             "select count(*) from presentations where presentation_date = \'" + next_friday.strftime('%Y-%m-%d') + "\'")
-        if duck_cursor.fetchone()[0] == 0:
+        if self.duck_cursor.fetchone()[0] == 0:
             missing_presenter = True
-            duck_cursor.execute("select name from members order by last_fatal, name")
-            name = duck_cursor.fetchone()[0]
+            self.duck_cursor.execute("select name from members order by last_fatal, name")
+            name = self.duck_cursor.fetchone()[0]
             message += name + " should give a FATAL on " + next_friday.strftime('%d-%m-%Y') + "\n"
-            duck_cursor.execute("update members set last_fatal = '" + next_friday.strftime(
+            self.duck_cursor.execute("update members set last_fatal = '" + next_friday.strftime(
                 '%Y-%m-%d') + "' where name = '" + name + "'")
         message += "Talk to me and schedule yourself for your talk ASAP [boop]"
         if missing_presenter:
@@ -343,9 +347,9 @@ class TelegramBot(BotHandlerMixin, Bottle):
     def meeting_next_week(self):
         d = datetime.today()
         next_monday = next_weekday(d, 0)
-        duck_cursor.execute("select * from presentations where presentation_date >= \'" + next_monday.strftime(
+        self.duck_cursor.execute("select * from presentations where presentation_date >= \'" + next_monday.strftime(
             '%Y-%m-%d') + "\' and presentation_date <= \'" + (next_monday + timedelta(5)).strftime('%Y-%m-%d') + "\'")
-        result = duck_cursor.fetchall()
+        result = self.duck_cursor.fetchall()
         if len(result) == 0:
             return "Uff, no presentation for next week, maybe you should schedule yourself one?"
         else:
@@ -360,9 +364,9 @@ class TelegramBot(BotHandlerMixin, Bottle):
     def meeting_this_week(self):
         d = datetime.today()
         next_monday = next_weekday(d, 0)
-        duck_cursor.execute("select * from presentations where presentation_date >= \'" + datetime.today().strftime(
+        self.duck_cursor.execute("select * from presentations where presentation_date >= \'" + datetime.today().strftime(
             '%Y-%m-%d') + "\' and presentation_date < \'" + next_monday.strftime('%Y-%m-%d') + "\'")
-        result = duck_cursor.fetchall()
+        result = self.duck_cursor.fetchall()
         if len(result) == 0:
             return "Uff, no presentation for next week, maybe you should schedule yourself one?"
         else:
@@ -375,9 +379,9 @@ class TelegramBot(BotHandlerMixin, Bottle):
             return return_string
 
     def meeting_today(self):
-        duck_cursor.execute(
+        self.duck_cursor.execute(
             "select * from presentations where presentation_date = \'" + datetime.today().strftime('%Y-%m-%d') + "\'")
-        result = duck_cursor.fetchall()
+        result = self.duck_cursor.fetchall()
         if len(result) == 0:
             return "No presentations today, maybe you should schedule yourself one?"
         else:
@@ -388,17 +392,17 @@ class TelegramBot(BotHandlerMixin, Bottle):
 
     def run_query(self, query):
         try:
-            duck_cursor.execute(query)
+            self.duck_cursor.execute(query)
         except Exception as e:
             return str(e)
-        return self.query_answer(duck_cursor.fetchall())
+        return self.query_answer(self.duck_cursor.fetchall())
 
     def summary(self):
         return self.run_query(
             "SELECT presentation_date, author FROM presentations where presentation_date >= \'" + datetime.today().strftime(
                 '%Y-%m-%d') + "\' ORDER BY presentation_date")
 
-    def what_to_answer(self, chat_id, text):
+    def what_to_answer(self,text):
         first_word = text.split()[0]
         if first_word == "\\sql":
             forbidden_commads = ["insert", "delete", "update", "create", "drop", "copy"]
@@ -418,13 +422,13 @@ class TelegramBot(BotHandlerMixin, Bottle):
         if first_word == "\\summary":
             return self.summary()
         if first_word == '\\add_madam':
-            return self.schedule_madam(text.split(' ', 1)[1])
+            return self.schedule_madam(text)
         if first_word == '\\add_fatal':
-            return self.schedule_fatal(text.split(' ', 1)[1])
+            return self.schedule_fatal(text)
         if first_word == '\\add_holiday':
-            return self.schedule_holiday(text.split(' ', 1)[1])
+            return self.schedule_holiday(text)
         if first_word == '\\add_scientific_meeting':
-            return self.schedule_scientific_meeting(text.split(' ', 1)[1])
+            return self.schedule_scientific_meeting(text)
         return "[Beep] I don't understand what you said, I only understand the language of databases\n Say \\help if " \
                "you want to know what I am capable of. [Boop] "
 
@@ -442,7 +446,7 @@ class TelegramBot(BotHandlerMixin, Bottle):
             if first_word != self.my_name:
                 return response
             input_message = input_message.split(' ', 1)[1]
-        answer_data = self.what_to_answer(chat_id, input_message)
+        answer_data = self.what_to_answer(input_message)
         for answers in answer_data.split("\n"):
             self.send_message(chat_id, answers)
         return response  # status 200 OK by default

@@ -170,14 +170,14 @@ def test_summary():
 # Test Config File
 def test_config():
     f = open("config.txt", "r")
-    assert f.readline().split("\n")[0] == "<token>"
-    assert f.readline().split("\n")[0] == "<group_id>"
-    assert f.readline().split("\n")[0] == "<bot_name>"
-    assert f.readline().split("\n")[0] == "<default_zoom_madam>"
-    assert f.readline().split("\n")[0] == "<default_zoom_fatal>"
-    assert f.readline().split("\n")[0] == "<sender_email>"
-    assert f.readline().split("\n")[0] == "<password>"
-    assert f.readline().split("\n")[0] == "<attendees>"
+    assert f.readline().split("\n")[0] == "$token"
+    assert f.readline().split("\n")[0] == "$group_id"
+    assert f.readline().split("\n")[0] == "$bot_name"
+    assert f.readline().split("\n")[0] == "$default_zoom_madam"
+    assert f.readline().split("\n")[0] == "$default_zoom_fatal"
+    assert f.readline().split("\n")[0] == "$sender_email"
+    assert f.readline().split("\n")[0] == "$password"
+    assert f.readline().split("\n")[0] == "$attendees"
 
 # Test requests (user, group, supergroup)
 

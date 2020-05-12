@@ -1,8 +1,8 @@
-<token>
-<group_id>
-<bot_name>
-<default_zoom_madam>
-<default_zoom_fatal>
-<sender_email>
-<password>
-<attendees>
+$token
+$group_id
+$bot_name
+$default_zoom_madam
+$default_zoom_fatal
+$sender_email
+$password
+$attendees

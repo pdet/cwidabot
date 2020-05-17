@@ -179,6 +179,8 @@ def test_config():
     assert f.readline().split("\n")[0] == "$password"
     assert f.readline().split("\n")[0] == "$attendees"
 
+# Test Deletes
+
 # Test requests (user, group, supergroup)
 
 # Test calendar invite

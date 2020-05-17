@@ -158,6 +158,60 @@ class TelegramBot(BotHandlerMixin, Bottle):
         mail_server.login(self.login, self.password)
         mail_server.sendmail(fro, self.attendees, msg.as_string())
         mail_server.close()
+    
+    def cancel_calendar_invite(self, eml_body, eml_subject, start):
+        CRLF = "\r\n"
+        organizer = "Awesome-O;CN=Awesome-O:mailto:awesome-o" + CRLF + " @cwi.nl"
+        fro = "Awesome-O <holanda@cwi.nl>"
+        # Hacky fix to gmt stuff
+        start -= timedelta(hours=2)
+        dur = timedelta(hours=1)
+        ddtstart = start
+        dtstamp = ddtstart.strftime("%Y%m%dT%H%M%SZ")
+        dtstart = start.strftime("%Y%m%dT%H%M%SZ")
+        dtend = (start + dur).strftime("%Y%m%dT%H%M%SZ")
+        description = eml_subject + CRLF
+        attendee = ""
+        for att in self.attendees:
+            attendee += "ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-    PARTICIPANT;PARTSTAT=ACCEPTED;RSVP=TRUE" + CRLF \
+                        + ";CN=" + att + ";X-NUM-GUESTS=0:" + CRLF + " mailto:" + att + CRLF
+        ical = "BEGIN:VCALENDAR" + CRLF + "PRODID:pyICSParser" + CRLF + "VERSION:2.0" + CRLF \
+               + "CALSCALE:GREGORIAN" + CRLF
+        ical += "METHOD:CANCEL" + CRLF + "BEGIN:VEVENT" + CRLF + "DTSTART:" + dtstart + CRLF + "DTEND:" + dtend \
+                + CRLF + "DTSTAMP:" + dtstamp + CRLF + organizer + CRLF
+        ical += "UID:FIXMEUID" + dtstamp + CRLF
+        ical += attendee + "CREATED:" + dtstamp + CRLF + description + "LAST-MODIFIED:" + dtstamp + CRLF + "LOCATION:" \
+            + CRLF + "SEQUENCE:0" + CRLF + "STATUS:CANCELLED" + CRLF
+        ical += "SUMMARY:" + eml_subject + CRLF + "TRANSP:OPAQUE" + CRLF + "END:VEVENT" + CRLF + "END:VCALENDAR" + CRLF
+
+        msg = MIMEMultipart('mixed')
+        msg['Reply-To'] = fro
+        msg['Date'] = formatdate(localtime=False)
+        msg['Subject'] = eml_subject
+        msg['From'] = fro
+        msg['To'] = ",".join(self.attendees)
+
+        part_email = MIMEText(eml_body, "html")
+        part_cal = MIMEText(ical, 'calendar;method=REQUEST')
+
+        msg_alternative = MIMEMultipart('alternative')
+        msg.attach(msg_alternative)
+
+        ical_atch = MIMEBase('application/ics', ' ;name="%s"' % "invite.ics")
+        ical_atch.set_payload(ical)
+        Encoders.encode_base64(ical_atch)
+        ical_atch.add_header('Content-Disposition', 'attachment; filename="%s"' % "invite.ics")
+
+        msg_alternative.attach(part_email)
+        msg_alternative.attach(part_cal)
+
+        mail_server = smtplib.SMTP('zwebmail.cwi.nl', 587)
+        mail_server.ehlo()
+        mail_server.starttls()
+        mail_server.ehlo()
+        mail_server.login(self.login, self.password)
+        mail_server.sendmail(fro, self.attendees, msg.as_string())
+        mail_server.close()
 
     def query_answer(self, qa_list):
         result_str = ''
@@ -269,6 +323,24 @@ class TelegramBot(BotHandlerMixin, Bottle):
         except Exception as e:
             return "Holiday was not scheduled, try: \n \\add_holiday ('yyyy-mm-dd') \n" + str(e)
 
+    def delete_appointment(self, info):
+        try:
+            info = info.split(' ', 1)[1]
+            meeting_info = info.split(',')
+            query = ''
+            if len(meeting_info) == 1:
+                query = "DELETE FROM presentations where presentation_date == " + info
+            else:
+                return "Wrong number of parameters for delete , try: \n \\delete ('yyyy-mm-dd')"
+            res = self.duck_cursor.execute(query)
+            if (res[0] == 1):
+                return "Appointment Deleted"
+            else:
+                return "No appointment on " + meeting_info
+        except Exception as e:
+            return "Something went wrong: " + str(e)
+
+
     def schedule_scientific_meeting(self, info):
         try:
             info = info.split(' ', 1)[1]
@@ -356,6 +428,7 @@ class TelegramBot(BotHandlerMixin, Bottle):
         \\add_fatal - Inserts a fatal
         \\add_holiday - Inserts a holiday
         \\add_scientific_meeting - Inserts a scientific meeting
+        \\delete - Deletes appointment Usage: \\delete ('yyyy-mm-dd')
         \\summary - I'll give you a summary of all the meetings from today onwards """
 
     def run_query(self, text):
@@ -391,6 +464,8 @@ class TelegramBot(BotHandlerMixin, Bottle):
             return self.schedule_fatal(text)
         if first_word == '\\add_holiday':
             return self.schedule_holiday(text)
+        if first_word == '\\delete':
+            return self.delete_appointment(text)
         if first_word == '\\add_scientific_meeting':
             return self.schedule_scientific_meeting(text)
         return "[Beep] I don't understand what you said, I only understand the language of databases\n Say \\help if " \

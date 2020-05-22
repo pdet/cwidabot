@@ -1,3 +1,4 @@
+import tensorflow as tf
 import requests
 from bottle import Bottle, response, request as bottle_request
 import duckdb
@@ -12,6 +13,84 @@ from email.mime.text import MIMEText
 from email.utils import formatdate
 import email.encoders as Encoders
 
+import tensorlayer as tl
+import numpy as np
+from tensorlayer.cost import cross_entropy_seq, cross_entropy_seq_with_mask
+from tqdm import tqdm
+from sklearn.utils import shuffle
+from data.twitter import data
+from tensorlayer.models.seq2seq import Seq2seq
+from tensorlayer.models.seq2seq_with_attention import Seq2seqLuongAttention
+import os
+
+print("test")
+
+def initial_setup(data_corpus):
+    metadata, idx_q, idx_a = data.load_data(PATH='data/{}/'.format(data_corpus))
+    (trainX, trainY), (testX, testY), (validX, validY) = data.split_dataset(idx_q, idx_a)
+    trainX = tl.prepro.remove_pad_sequences(trainX.tolist())
+    trainY = tl.prepro.remove_pad_sequences(trainY.tolist())
+    testX = tl.prepro.remove_pad_sequences(testX.tolist())
+    testY = tl.prepro.remove_pad_sequences(testY.tolist())
+    validX = tl.prepro.remove_pad_sequences(validX.tolist())
+    validY = tl.prepro.remove_pad_sequences(validY.tolist())
+    return metadata, trainX, trainY, testX, testY, validX, validY
+
+data_corpus = "twitter"
+
+#data preprocessing
+metadata, trainX, trainY, testX, testY, validX, validY = initial_setup(data_corpus)
+
+# Parameters
+src_len = len(trainX)
+tgt_len = len(trainY)
+
+assert src_len == tgt_len
+
+batch_size = 32
+n_step = src_len // batch_size
+src_vocab_size = len(metadata['idx2w']) # 8002 (0~8001)
+emb_dim = 1024
+
+word2idx = metadata['w2idx']   # dict  word 2 index
+idx2word = metadata['idx2w']   # list index 2 word
+
+unk_id = word2idx['unk']   # 1
+pad_id = word2idx['_']     # 0
+
+start_id = src_vocab_size  # 8002
+end_id = src_vocab_size + 1  # 8003
+
+word2idx.update({'start_id': start_id})
+word2idx.update({'end_id': end_id})
+idx2word = idx2word + ['start_id', 'end_id']
+
+src_vocab_size = tgt_vocab_size = src_vocab_size + 2
+
+num_epochs = 50
+vocabulary_size = src_vocab_size
+decoder_seq_length = 20
+model_ = Seq2seq(
+        decoder_seq_length = decoder_seq_length,
+        cell_enc=tf.keras.layers.GRUCell,
+        cell_dec=tf.keras.layers.GRUCell,
+        n_layer=3,
+        n_units=256,
+        embedding_layer=tl.layers.Embedding(vocabulary_size=vocabulary_size, embedding_size=emb_dim),
+        )
+model_.load_weights('model.npz')
+
+def inference(seed, top_n):
+    model_.eval()
+    seed_id = [word2idx.get(w, unk_id) for w in seed.split(" ")]
+    sentence_id = model_(inputs=[[seed_id]], seq_length=20, start_token=start_id, top_n = top_n)
+    sentence = []
+    for w_id in sentence_id[0]:
+        w = idx2word[w_id]
+        if w == 'end_id':
+            break
+        sentence = sentence + [w]
+    return sentence
 
 def next_weekday(d, weekday):
     days_ahead = weekday - d.weekday()
@@ -393,8 +472,11 @@ class TelegramBot(BotHandlerMixin, Bottle):
             return self.schedule_holiday(text)
         if first_word == '\\add_scientific_meeting':
             return self.schedule_scientific_meeting(text)
-        return "[Beep] I don't understand what you said, I only understand the language of databases\n Say \\help if " \
-               "you want to know what I am capable of. [Boop] "
+        top_n = 3
+        answer = ''
+        for i in range(top_n):
+            answer+= ' '.join(inference(text,3)) + '\n'
+        return answer
 
     def post_handler(self):
         data = bottle_request.json
@@ -412,6 +494,8 @@ class TelegramBot(BotHandlerMixin, Bottle):
             input_message = input_message.split(' ', 1)[1]
         answer_data = self.what_to_answer(input_message)
         for answers in answer_data.split("\n"):
+            print(chat_id)
+            print (answers)
             self.send_message(chat_id, answers)
         return response  # status 200 OK by default
 

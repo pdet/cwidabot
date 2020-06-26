@@ -315,6 +315,18 @@ class TelegramBot(BotHandlerMixin, Bottle):
                     result[0][1], result[0][2], result[0][0])
                 self.send_message(self.da_chat_id, message)
                 return message
+        # If its a Monday, even if we don't have a presentation there are announcements
+        elif datetime.datetime.today().weekday() == 0:
+            message = "[beep] Good morning my human friends, Today we don't have a presenter, only announcements, " \
+                      "Join at: %s" % self.madam_zoom_link
+            self.send_message(self.da_chat_id, message)
+            return message
+        # If its a Friday, say we don't have a presentation
+        elif datetime.datetime.today().weekday() == 4:
+            message = "[beep] Good morning my human friends, We don't have a FATAL presentation today, enjoy your " \
+                      "friday [bpp[]] "
+            self.send_message(self.da_chat_id, message)
+            return message
 
     def request_speakers(self):
         next_monday = next_weekday(datetime.today(), 0)
@@ -360,7 +372,7 @@ class TelegramBot(BotHandlerMixin, Bottle):
 
     def run_query(self, text):
         try:
-            forbidden_commands = ["insert", "delete", "update", "create", "drop", "copy"]
+            forbidden_commands = ["insert", "update", "create", "drop", "copy"]
             # Avoid sql injection
             get_first = text.split(';')[0]
             query = get_first.split(' ', 1)[1]
